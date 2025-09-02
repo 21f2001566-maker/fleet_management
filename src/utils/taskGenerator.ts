@@ -2,7 +2,8 @@ import { Vehicle, MaintenanceTask } from '../types';
 
 export function generateMaintenanceTasks(
   vehicles: Vehicle[],
-  existingTasks: MaintenanceTask[]
+  existingTasks: MaintenanceTask[],
+  forceGenerate: boolean = false
 ): MaintenanceTask[] {
   const newTasks: MaintenanceTask[] = [];
   const currentDate = new Date();
@@ -12,16 +13,24 @@ export function generateMaintenanceTasks(
     const lastServiceDate = new Date(vehicle.lastServiceDate);
     const nextDueDate = calculateNextDueDate(lastServiceDate, vehicle.serviceInterval);
     
-    // Generate tasks for the next 30 days
-    if (nextDueDate <= nextMonth && nextDueDate >= currentDate) {
+    // Generate tasks for the next 30 days OR if force generating
+    const shouldGenerate = forceGenerate || (nextDueDate <= nextMonth && nextDueDate >= currentDate);
+    
+    if (shouldGenerate) {
       // Check if task already exists for this vehicle in the next 30 days
       const existingTask = existingTasks.find(
         task => task.vehicleId === vehicle.id && 
-        Math.abs(new Date(task.scheduledDate).getTime() - nextDueDate.getTime()) < 7 * 24 * 60 * 60 * 1000 // Within 7 days
+        (forceGenerate ? 
+          task.status === 'Pending' || task.status === 'Assigned' : // For force generate, avoid duplicating pending/assigned tasks
+          Math.abs(new Date(task.scheduledDate).getTime() - nextDueDate.getTime()) < 7 * 24 * 60 * 60 * 1000 // Within 7 days for auto
+        )
       );
       
       if (!existingTask) {
-        const task = createMaintenanceTask(vehicle, nextDueDate);
+        const scheduledDate = forceGenerate ? 
+          new Date(currentDate.getTime() + Math.random() * 14 * 24 * 60 * 60 * 1000) : // Random date within 2 weeks for force
+          nextDueDate;
+        const task = createMaintenanceTask(vehicle, scheduledDate, forceGenerate);
         newTasks.push(task);
       }
     }
@@ -48,7 +57,7 @@ function calculateNextDueDate(lastServiceDate: Date, interval: string): Date {
   return nextDate;
 }
 
-function createMaintenanceTask(vehicle: Vehicle, dueDate: Date): MaintenanceTask {
+function createMaintenanceTask(vehicle: Vehicle, dueDate: Date, isForced: boolean = false): MaintenanceTask {
   const taskId = `TASK-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
   
   const taskTemplates = {
@@ -69,7 +78,29 @@ function createMaintenanceTask(vehicle: Vehicle, dueDate: Date): MaintenanceTask
     }
   };
   
-  const template = taskTemplates[vehicle.serviceInterval];
+  // For forced generation, create more varied tasks
+  const forcedTaskTemplates = [
+    {
+      title: 'Preventive Maintenance Check',
+      description: 'Comprehensive preventive maintenance inspection',
+      duration: 3
+    },
+    {
+      title: 'System Diagnostics',
+      description: 'Full system diagnostic and performance check',
+      duration: 2
+    },
+    {
+      title: 'Safety Compliance Inspection',
+      description: 'Ensure vehicle meets all safety compliance standards',
+      duration: 2
+    }
+  ];
+  
+  const template = isForced ? 
+    forcedTaskTemplates[Math.floor(Math.random() * forcedTaskTemplates.length)] :
+    taskTemplates[vehicle.serviceInterval];
+    
   const priority = vehicle.mileage > 50000 ? 'High' : vehicle.mileage > 30000 ? 'Medium' : 'Low';
   
   return {

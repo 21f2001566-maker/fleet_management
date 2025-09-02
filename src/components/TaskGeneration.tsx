@@ -8,7 +8,9 @@ import {
   AlertTriangle, 
   Clock,
   Truck,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Settings
 } from 'lucide-react';
 
 interface TaskGenerationProps {
@@ -21,17 +23,61 @@ export function TaskGeneration({ vehicles, existingTasks, onTasksGenerated }: Ta
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewTasks, setPreviewTasks] = useState<MaintenanceTask[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [generationMode, setGenerationMode] = useState<'auto' | 'force' | 'manual'>('auto');
+  const [manualTask, setManualTask] = useState({
+    vehicleId: '',
+    title: '',
+    description: '',
+    priority: 'Medium' as const,
+    scheduledDate: new Date().toISOString().split('T')[0],
+    estimatedDuration: 2
+  });
 
-  const handlePreviewGeneration = () => {
+  const handlePreviewGeneration = (mode: 'auto' | 'force' = 'auto') => {
+    setGenerationMode(mode);
     setIsGenerating(true);
     setTimeout(() => {
-      const newTasks = generateMaintenanceTasks(vehicles, existingTasks);
+      const newTasks = generateMaintenanceTasks(vehicles, existingTasks, mode === 'force');
       setPreviewTasks(newTasks);
       setShowPreview(true);
       setIsGenerating(false);
     }, 1500);
   };
 
+  const handleManualTaskCreate = () => {
+    if (!manualTask.vehicleId || !manualTask.title || !manualTask.description) return;
+    
+    const taskId = `TASK-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const newTask: MaintenanceTask = {
+      id: taskId,
+      vehicleId: manualTask.vehicleId,
+      title: manualTask.title,
+      description: manualTask.description,
+      priority: manualTask.priority,
+      status: 'Pending',
+      scheduledDate: manualTask.scheduledDate,
+      estimatedDuration: manualTask.estimatedDuration,
+      beforePhotos: [],
+      afterPhotos: [],
+      partsUsed: [],
+      createdAt: new Date().toISOString()
+    };
+    
+    setPreviewTasks([newTask]);
+    setShowPreview(true);
+    setShowManualForm(false);
+    
+    // Reset form
+    setManualTask({
+      vehicleId: '',
+      title: '',
+      description: '',
+      priority: 'Medium',
+      scheduledDate: new Date().toISOString().split('T')[0],
+      estimatedDuration: 2
+    });
+  };
   const handleConfirmGeneration = () => {
     onTasksGenerated(previewTasks);
     setShowPreview(false);
@@ -163,53 +209,230 @@ export function TaskGeneration({ vehicles, existingTasks, onTasksGenerated }: Ta
             <h3 className="text-lg font-semibold text-gray-900">Generate Maintenance Tasks</h3>
             <p className="text-gray-600">Create automated maintenance tasks for the upcoming month</p>
           </div>
-          <button
-            onClick={handlePreviewGeneration}
-            disabled={isGenerating}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
-          >
-            {isGenerating ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4" />
-                Generate Tasks
-              </>
-            )}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowManualForm(true)}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Create Task
+            </button>
+            <button
+              onClick={() => handlePreviewGeneration('auto')}
+              disabled={isGenerating}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4" />
+                  Auto Generate
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => handlePreviewGeneration('force')}
+              disabled={isGenerating}
+              className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Settings className="h-4 w-4" />
+                  Force Generate
+                </>
+              )}
+            </button>
+          </div>
         </div>
         
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium">Task Generation Process:</p>
-              <ul className="mt-2 list-disc list-inside space-y-1">
-                <li>Analyzes each vehicle's last service date and interval</li>
-                <li>Calculates next due dates within the upcoming month</li>
-                <li>Creates appropriate maintenance tasks based on service type</li>
-                <li>Avoids duplicate tasks for vehicles already scheduled</li>
-              </ul>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Zap className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium">Auto Generate</p>
+                <p className="mt-1">Creates tasks only for vehicles due for maintenance based on their service intervals.</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Settings className="h-5 w-5 text-purple-600 mt-0.5" />
+              <div className="text-sm text-purple-800">
+                <p className="font-medium">Force Generate</p>
+                <p className="mt-1">Creates maintenance tasks for all vehicles regardless of due dates.</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Plus className="h-5 w-5 text-green-600 mt-0.5" />
+              <div className="text-sm text-green-800">
+                <p className="font-medium">Create Task</p>
+                <p className="mt-1">Manually create a custom maintenance task for any vehicle.</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Manual Task Creation Modal */}
+      {showManualForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">Create Manual Task</h3>
+              <p className="text-gray-600 mt-1">Create a custom maintenance task</p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Vehicle</label>
+                <select
+                  value={manualTask.vehicleId}
+                  onChange={(e) => setManualTask(prev => ({ ...prev, vehicleId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select Vehicle</option>
+                  {vehicles.map(vehicle => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.id} - {vehicle.type} ({vehicle.locationBase})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Task Title</label>
+                <input
+                  type="text"
+                  value={manualTask.title}
+                  onChange={(e) => setManualTask(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g., Emergency Brake Repair"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={manualTask.description}
+                  onChange={(e) => setManualTask(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Detailed description of the maintenance work required..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                  <select
+                    value={manualTask.priority}
+                    onChange={(e) => setManualTask(prev => ({ ...prev, priority: e.target.value as any }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Duration (hours)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={manualTask.estimatedDuration}
+                    onChange={(e) => setManualTask(prev => ({ ...prev, estimatedDuration: parseInt(e.target.value) || 2 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Scheduled Date</label>
+                <input
+                  type="date"
+                  value={manualTask.scheduledDate}
+                  onChange={(e) => setManualTask(prev => ({ ...prev, scheduledDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={handleManualTaskCreate}
+                disabled={!manualTask.vehicleId || !manualTask.title || !manualTask.description}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Create Task
+              </button>
+              <button
+                onClick={() => setShowManualForm(false)}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Task Preview Modal */}
       {showPreview && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900">Preview Generated Tasks</h3>
-              <p className="text-gray-600 mt-1">Review and confirm the {previewTasks.length} new tasks to be created</p>
+              <h3 className="text-xl font-semibold text-gray-900">
+                {generationMode === 'manual' ? 'Preview New Task' : 'Preview Generated Tasks'}
+              </h3>
+              <p className="text-gray-600 mt-1">
+                {generationMode === 'manual' 
+                  ? 'Review and confirm the new task to be created'
+                  : `Review and confirm the ${previewTasks.length} new tasks to be created`
+                }
+              </p>
             </div>
             
             <div className="p-6 max-h-96 overflow-y-auto">
               {previewTasks.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No new tasks need to be generated</p>
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-4">No new tasks need to be generated automatically</p>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        setShowPreview(false);
+                        handlePreviewGeneration('force');
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg mr-2 transition-colors"
+                    >
+                      Force Generate Tasks
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowPreview(false);
+                        setShowManualForm(true);
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Create Manual Task
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {previewTasks.map(task => {
@@ -251,21 +474,22 @@ export function TaskGeneration({ vehicles, existingTasks, onTasksGenerated }: Ta
               )}
             </div>
             
-            <div className="p-6 border-t border-gray-200 flex gap-3">
-              <button
-                onClick={handleConfirmGeneration}
-                disabled={previewTasks.length === 0}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Confirm & Create {previewTasks.length} Tasks
-              </button>
-              <button
-                onClick={handleCancelPreview}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+            {previewTasks.length > 0 && (
+              <div className="p-6 border-t border-gray-200 flex gap-3">
+                <button
+                  onClick={handleConfirmGeneration}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Confirm & Create {previewTasks.length} Task{previewTasks.length > 1 ? 's' : ''}
+                </button>
+                <button
+                  onClick={handleCancelPreview}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
